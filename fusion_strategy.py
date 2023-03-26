@@ -2,13 +2,65 @@ import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 import utils
+from efficient_attention import EfficientAttention, LinearAttention, HydraAttention
 
 
 EPSILON = 1e-5
 
+def efficient_attention(tensor1, tensor2, scale_head):
+    # avg, max, nuclear
+
+    _, c, _, _ =tensor1.shape
+
+    k=111
+    v=111
+    h=111
+
+    tensor1_attention=EfficientAttention(c, k, v, h).cuda()(tensor1)
+
+    tensor2_attention=EfficientAttention(c, k, v, h).cuda()(tensor2)
+
+    tensor_f = (tensor1_attention + tensor2_attention) / 2
+    
+    return tensor_f
+
+
+def linear_attention(tensor1, tensor2, scale_head):
+    # avg, max, nuclear
+
+    _, c, _, _ =tensor1.shape
+
+    k=c//16
+    v=c//16
+    h=c//16
+
+    tensor1_attention=LinearAttention(c, k, h*scale_head, v).cuda()(tensor1)
+
+    tensor2_attention=LinearAttention(c, k, h*scale_head, v).cuda()(tensor2)
+
+    tensor_f = (tensor1_attention + tensor2_attention) / 2
+    
+    return tensor_f
+
+def hydra_attention(tensor1, tensor2, scale_head):
+    
+    _, c, _, _ =tensor1.shape
+
+    k=c//16
+    v=c//16
+    h=scale_head
+
+    tensor1_attention=HydraAttention(c, k, h, v).cuda()(tensor1)
+
+    tensor2_attention=HydraAttention(c, k, h*scale_head, v).cuda()(tensor2)
+
+    tensor_f = (tensor1_attention + tensor2_attention) / 2
+    
+    return tensor_f
+
 
 # attention fusion strategy, average based on weight maps
-def attention_fusion_weight(tensor1, tensor2, p_type):
+def channel_spatial(tensor1, tensor2, p_type='attention_avg'):
     # avg, max, nuclear
     f_channel = channel_fusion(tensor1, tensor2,  p_type)
     f_spatial = spatial_fusion(tensor1, tensor2)
@@ -17,8 +69,9 @@ def attention_fusion_weight(tensor1, tensor2, p_type):
     return tensor_f
 
 
+
 # select channel
-def channel_fusion(tensor1, tensor2, p_type):
+def channel_fusion(tensor1, tensor2, p_type='attention_avg'):
     # global max pooling
     shape = tensor1.size()
     # calculate channel attention

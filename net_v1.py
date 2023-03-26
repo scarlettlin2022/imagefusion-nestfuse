@@ -5,6 +5,7 @@ import torch.nn.functional as F
 
 import fusion_strategy
 
+from efficient_attention import EfficientAttention, LinearAttention, HydraAttention, HydraAttention_v2, CrossAttention
 
 class UpsampleReshape_eval(torch.nn.Module):
     def __init__(self):
@@ -79,15 +80,17 @@ class DenseBlock_light(torch.nn.Module):
 
 
 # NestFuse network - light, no desnse
-class NestFuse_autoencoder(nn.Module):
-    def __init__(self, nb_filter, input_nc=1, output_nc=1, deepsupervision=True):
-        super(NestFuse_autoencoder, self).__init__()
+class Net(nn.Module):
+    def __init__(self, nb_filter, input_nc=1, output_nc=1, deepsupervision=True, fusion_type=0, scale_head=4):
+        super(Net, self).__init__()
         self.deepsupervision = deepsupervision
         block = DenseBlock_light
         output_filter = 16
         kernel_size = 3
         stride = 1
-
+        
+        
+        self.fusion_type=fusion_type
         self.pool = nn.MaxPool2d(2, 2)
         self.up = nn.Upsample(scale_factor=2)
         self.up_eval = UpsampleReshape_eval()
@@ -98,6 +101,64 @@ class NestFuse_autoencoder(nn.Module):
         self.DB2_0 = block(nb_filter[0], nb_filter[1], kernel_size, 1)
         self.DB3_0 = block(nb_filter[1], nb_filter[2], kernel_size, 1)
         self.DB4_0 = block(nb_filter[2], nb_filter[3], kernel_size, 1)
+        
+        #scale_kv=16
+        scale_kv=8
+
+        if fusion_type==1:
+            self.fusion0_e1=EfficientAttention(nb_filter[0], nb_filter[0]//scale_kv, nb_filter[0]//(scale_kv*scale_head), nb_filter[0]//scale_kv)
+            self.fusion1_e1=EfficientAttention(nb_filter[1], nb_filter[1]//scale_kv, nb_filter[1]//(scale_kv*scale_head), nb_filter[1]//scale_kv)
+            self.fusion2_e1=EfficientAttention(nb_filter[2], nb_filter[2]//scale_kv, nb_filter[2]//(scale_kv*scale_head), nb_filter[2]//scale_kv)
+            self.fusion3_e1=EfficientAttention(nb_filter[3], nb_filter[3]//scale_kv, nb_filter[3]//(scale_kv*scale_head), nb_filter[3]//scale_kv)
+
+            self.fusion0_e2=EfficientAttention(nb_filter[0], nb_filter[0]//scale_kv, nb_filter[0]//(scale_kv*scale_head), nb_filter[0]//scale_kv)
+            self.fusion1_e2=EfficientAttention(nb_filter[1], nb_filter[1]//scale_kv, nb_filter[1]//(scale_kv*scale_head), nb_filter[1]//scale_kv)
+            self.fusion2_e2=EfficientAttention(nb_filter[2], nb_filter[2]//scale_kv, nb_filter[2]//(scale_kv*scale_head), nb_filter[2]//scale_kv)
+            self.fusion3_e2=EfficientAttention(nb_filter[3], nb_filter[3]//scale_kv, nb_filter[3]//(scale_kv*scale_head), nb_filter[3]//scale_kv)
+
+        elif fusion_type==2:
+            self.fusion0_e1=LinearAttention(nb_filter[0], nb_filter[0]//scale_kv, nb_filter[0]//(scale_kv*scale_head), nb_filter[0]//scale_kv)
+            self.fusion1_e1=LinearAttention(nb_filter[1], nb_filter[1]//scale_kv, nb_filter[1]//(scale_kv*scale_head), nb_filter[1]//scale_kv)
+            self.fusion2_e1=LinearAttention(nb_filter[2], nb_filter[2]//scale_kv, nb_filter[2]//(scale_kv*scale_head), nb_filter[2]//scale_kv)
+            self.fusion3_e1=LinearAttention(nb_filter[3], nb_filter[3]//scale_kv, nb_filter[3]//(scale_kv*scale_head), nb_filter[3]//scale_kv)
+
+            self.fusion0_e2=LinearAttention(nb_filter[0], nb_filter[0]//scale_kv, nb_filter[0]//(scale_kv*scale_head), nb_filter[0]//scale_kv)
+            self.fusion1_e2=LinearAttention(nb_filter[1], nb_filter[1]//scale_kv, nb_filter[1]//(scale_kv*scale_head), nb_filter[1]//scale_kv)
+            self.fusion2_e2=LinearAttention(nb_filter[2], nb_filter[2]//scale_kv, nb_filter[2]//(scale_kv*scale_head), nb_filter[2]//scale_kv)
+            self.fusion3_e2=LinearAttention(nb_filter[3], nb_filter[3]//scale_kv, nb_filter[3]//(scale_kv*scale_head), nb_filter[3]//scale_kv)
+
+        elif fusion_type==3:
+            self.fusion0_e1=HydraAttention(nb_filter[0], nb_filter[0]//scale_kv, nb_filter[0]//(scale_kv*scale_head), nb_filter[0]//scale_kv)
+            self.fusion1_e1=HydraAttention(nb_filter[1], nb_filter[1]//scale_kv, nb_filter[1]//(scale_kv*scale_head), nb_filter[1]//scale_kv)
+            self.fusion2_e1=HydraAttention(nb_filter[2], nb_filter[2]//scale_kv, nb_filter[2]//(scale_kv*scale_head), nb_filter[2]//scale_kv)
+            self.fusion3_e1=HydraAttention(nb_filter[3], nb_filter[3]//scale_kv, nb_filter[3]//(scale_kv*scale_head), nb_filter[3]//scale_kv)
+
+            self.fusion0_e2=HydraAttention(nb_filter[0], nb_filter[0]//scale_kv, nb_filter[0]//(scale_kv*scale_head), nb_filter[0]//scale_kv)
+            self.fusion1_e2=HydraAttention(nb_filter[1], nb_filter[1]//scale_kv, nb_filter[1]//(scale_kv*scale_head), nb_filter[1]//scale_kv)
+            self.fusion2_e2=HydraAttention(nb_filter[2], nb_filter[2]//scale_kv, nb_filter[2]//(scale_kv*scale_head), nb_filter[2]//scale_kv)
+            self.fusion3_e2=HydraAttention(nb_filter[3], nb_filter[3]//scale_kv, nb_filter[3]//(scale_kv*scale_head), nb_filter[3]//scale_kv)
+            
+        elif fusion_type==4:
+
+            self.fusion0_e1=HydraAttention_v2(nb_filter[0], nb_filter[0]//scale_kv, nb_filter[0]//(scale_kv*scale_head), nb_filter[0]//scale_kv)
+            self.fusion1_e1=HydraAttention_v2(nb_filter[1], nb_filter[1]//scale_kv, nb_filter[1]//(scale_kv*scale_head), nb_filter[1]//scale_kv)
+            self.fusion2_e1=HydraAttention_v2(nb_filter[2], nb_filter[2]//scale_kv, nb_filter[2]//(scale_kv*scale_head), nb_filter[2]//scale_kv)
+            self.fusion3_e1=HydraAttention_v2(nb_filter[3], nb_filter[3]//scale_kv, nb_filter[3]//(scale_kv*scale_head), nb_filter[3]//scale_kv)
+
+            self.fusion0_e2=HydraAttention_v2(nb_filter[0], nb_filter[0]//scale_kv, nb_filter[0]//(scale_kv*scale_head), nb_filter[0]//scale_kv)
+            self.fusion1_e2=HydraAttention_v2(nb_filter[1], nb_filter[1]//scale_kv, nb_filter[1]//(scale_kv*scale_head), nb_filter[1]//scale_kv)
+            self.fusion2_e2=HydraAttention_v2(nb_filter[2], nb_filter[2]//scale_kv, nb_filter[2]//(scale_kv*scale_head), nb_filter[2]//scale_kv)
+            self.fusion3_e2=HydraAttention_v2(nb_filter[3], nb_filter[3]//scale_kv, nb_filter[3]//(scale_kv*scale_head), nb_filter[3]//scale_kv)
+            
+        elif fusion_type==5:
+            self.fusion0=CrossAttention(nb_filter[0], nb_filter[0]//scale_kv, nb_filter[0]//(scale_kv*scale_head), nb_filter[0]//scale_kv)
+            self.fusion1=CrossAttention(nb_filter[1], nb_filter[1]//scale_kv, nb_filter[1]//(scale_kv*scale_head), nb_filter[1]//scale_kv)
+            self.fusion2=CrossAttention(nb_filter[2], nb_filter[2]//scale_kv, nb_filter[2]//(scale_kv*scale_head), nb_filter[2]//scale_kv)
+            self.fusion3=CrossAttention(nb_filter[3], nb_filter[3]//scale_kv, nb_filter[3]//(scale_kv*scale_head), nb_filter[3]//scale_kv)
+
+
+
+
         
         # self.DB5_0 = block(nb_filter[3], nb_filter[4], kernel_size, 1)
 
@@ -144,48 +205,30 @@ class NestFuse_autoencoder(nn.Module):
         x4_0 = self.DB4_0(self.pool(x3_0))
         # x5_0 = self.DB5_0(self.pool(x4_0))
         return [x1_0, x2_0, x3_0, x4_0]
-
-    def fusion_channel_spatial(self, en1, en2, p_type):
-        # attention weight
-        self.fusion_function = fusion_strategy.channel_spatial
-
-        f1_0 = self.fusion_function(en1[0], en2[0], p_type)
-        f2_0 = self.fusion_function(en1[1], en2[1], p_type)
-        f3_0 = self.fusion_function(en1[2], en2[2], p_type)
-        f4_0 = self.fusion_function(en1[3], en2[3], p_type)
-        '''torch.Size([8, 64, 111, 111])
-        torch.Size([8, 112, 55, 55])
-        torch.Size([8, 160, 27, 27])
-        torch.Size([8, 208, 13, 13])'''
-        return [f1_0, f2_0, f3_0, f4_0]
-
-
-    def fusion_linear_attention(self, en1, en2, scale_head):
-        self.fusion_function = fusion_strategy.linear_attention
-        f1_0 = self.fusion_function(en1[0], en2[0], scale_head)
-        f2_0 = self.fusion_function(en1[1], en2[1], scale_head)
-        f3_0 = self.fusion_function(en1[2], en2[2], scale_head)
-        f4_0 = self.fusion_function(en1[3], en2[3], scale_head)
-
-        return [f1_0, f2_0, f3_0, f4_0]
     
-    def fusion_hydra_attention(self, en1, en2, scale_head):
-        self.fusion_function = fusion_strategy.hydra_attention
-        f1_0 = self.fusion_function(en1[0], en2[0], scale_head)
-        f2_0 = self.fusion_function(en1[1], en2[1], scale_head)
-        f3_0 = self.fusion_function(en1[2], en2[2], scale_head)
-        f4_0 = self.fusion_function(en1[3], en2[3], scale_head)
+    def fusion(self, en1, en2):
+        if self.fusion_type==0:
+            self.fusion_function = fusion_strategy.channel_spatial
 
-        return [f1_0, f2_0, f3_0, f4_0]
-    
-    def fusion_efficient_attention(self, en1, en2, scale_head):
-        self.fusion_function = fusion_strategy.efficient_attention
-        f1_0 = self.fusion_function(en1[0], en2[0], scale_head)
-        f2_0 = self.fusion_function(en1[1], en2[1], scale_head)
-        f3_0 = self.fusion_function(en1[2], en2[2], scale_head)
-        f4_0 = self.fusion_function(en1[3], en2[3], scale_head)
+            f0 = self.fusion_function(en1[0], en2[0])
+            f1 = self.fusion_function(en1[1], en2[1])
+            f2 = self.fusion_function(en1[2], en2[2])
+            f3 = self.fusion_function(en1[3], en2[3])
+            
+        elif self.fusion_type==5:
+            f0 = self.fusion0(en1[0], en2[0])
+            f1 = self.fusion1(en1[1], en2[1])
+            f2 = self.fusion2(en1[2], en2[2])
+            f3 = self.fusion3(en1[3], en2[3])
+        else:
+            f0=( self.fusion0_e1(en1[0])+self.fusion0_e2(en2[0]) ) / 2
+            f1=( self.fusion1_e1(en1[1])+self.fusion1_e2(en2[1]) ) / 2
+            f2=( self.fusion2_e1(en1[2])+self.fusion2_e2(en2[2]) ) / 2
+            f3=( self.fusion3_e1(en1[3])+self.fusion3_e2(en2[3]) ) / 2
 
-        return [f1_0, f2_0, f3_0, f4_0]
+        return [f0, f1, f2, f3]
+
+ 
 
     def decoder_train(self, f_en):
 

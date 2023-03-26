@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from PIL import Image
 from args_fusion import args
-from scipy.misc import imread, imsave, imresize
+#from scipy.misc import imread, imsave, imresize
 import matplotlib as mpl
 
 from os import listdir

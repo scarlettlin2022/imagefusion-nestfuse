@@ -13,7 +13,7 @@ class args():
 	save_loss_dir = './models/loss_autoencoder/'
 
 	cuda = 1
-	ssim_weight = [1,10,100,1000,10000]
+	ssim_weight = [1,5,10,100,1000,10000]
 	ssim_path = ['1e0', '1e1', '1e2', '1e3', '1e4']
 
 	lr = 1e-4  #"learning rate, default is 0.001"
