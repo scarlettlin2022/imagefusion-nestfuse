@@ -19,7 +19,7 @@ from net_v1 import Net
 from args_fusion import args
 import pytorch_msssim
 from module import SaveBestModel, GradientLoss, AdaptiveMSE, AdaptiveSSIM
-
+from swin_unet import SwinUNet
 
 # Training settings
 parser = argparse.ArgumentParser(description="PyTorch SRResNet")
@@ -27,8 +27,8 @@ parser.add_argument("--cuda", action="store_true", help="Use cuda?")
 parser.add_argument("--gpus", default="0", type=str, help="gpu ids (default: 0)")
 parser.add_argument("--threads", type=int, default=0, help="Number of threads for data loader to use, Default: 1")
 parser.add_argument("--step", type=int, default=10, help="Sets the learning rate to the initial LR decayed by momentum every n epochs, Default: n=10")#mask_npy_111
-parser.add_argument("--dtstCh1", default='src/FDG_mask_npy_111_delete', type=str, help="root folder: channel 1 of input dataset")
-parser.add_argument("--dtstCh2", default='src/MRI_mask_npy_111_delete', type=str, help="root folder: channel 2 of input dataset")
+parser.add_argument("--dtstCh1", default='src/FDG_112_train', type=str, help="root folder: channel 1 of input dataset")
+parser.add_argument("--dtstCh2", default='src/MRI_112_train', type=str, help="root folder: channel 2 of input dataset")
 
 
 parser.add_argument("--batchSize", type=int, default=16, help="training batch size")
@@ -161,6 +161,28 @@ def main():
 
 
         net = Net(nb_filter, input_nc, output_nc, deepsupervision, fusion_type=opt.fusion, scale_head=opt.heads)
+        
+        '''img_size=112
+        patch_size=2
+        in_chans=1
+        out_chans=in_chans
+        num_classes=1
+        embed_dim=96
+        depths=[2, 2, 2, 2]
+        depths_decoder=[1, 2, 2, 2]
+        num_heads=[3, 6, 12, 24]
+        window_size=7
+        mlp_ratio=4.
+        
+        net = SwinUNet(img_size=img_size,
+                        patch_size=patch_size,
+                        in_chans=in_chans,
+                        num_classes=out_chans,
+                        embed_dim=embed_dim,
+                        depths=depths,
+                        num_heads=num_heads,
+                        window_size=window_size,
+                        mlp_ratio=mlp_ratio)'''
 
         if opt.resume:
             if os.path.isfile(opt.resume):
@@ -255,10 +277,18 @@ def train(ratio_ssim,trainloader, optimizer, model, epoch, fold, train_df):
         
         f_type=fusion_type[0]
         f = model.fusion(en_FDG, en_MRI)
-        print(en_FDG[0].shape,en_FDG[1].shape,en_FDG[2].shape,en_FDG[3].shape)
+        #print(en_FDG[0].shape,en_FDG[1].shape,en_FDG[2].shape,en_FDG[3].shape)
         # decoder
         outputs = model.decoder_train(f)
-
+        
+        #outputs=model(FDG_1c,MRI_gm)
+        
+        '''x, x_downsample = model.forward_features(FDG_1c)
+        y, y_downsample = model.forward_features(MRI_gm)
+        xy_downsample = model.feature_fusion(x_downsample, y_downsample)
+        xy = model.forward_up_features(xy_downsample[-1],xy_downsample)
+        outputs = model.up_x4(xy)'''
+        
         #info_ratio(FDG_1c,MRI_1c, outputs)
 
         ssim_loss_value = 0.
@@ -323,12 +353,36 @@ def train(ratio_ssim,trainloader, optimizer, model, epoch, fold, train_df):
             all_gd_loss_MRI += gd_loss_MRI.item()
         all_total_loss += total_loss.item()
         
+    
 
         if (iteration + 1) % args.log_interval == 0:
 
             print("train-> Fold {}, Epoch {} [{}/{}]:\t pixel loss FDG: {:.6f}, pixel loss MRI: {:.6f}, ssim loss FDG: {:.6f}, ssim loss MRI: {:.6f}, gradient loss FDG: {:.6f}, gradient loss MRI: {:.6f}, total: {:.6f}\n".format(fold,epoch, iteration, len(trainloader), pixel_loss_FDG, pixel_loss_MRI, ssim_loss_FDG, ssim_loss_MRI, gd_loss_FDG, gd_loss_MRI, total_loss.item()))
             
             train_df.iloc[epoch-1]=[all_total_loss/(iteration + 1), all_pixel_loss_FDG/(iteration + 1), all_ssim_loss_FDG/(iteration + 1), all_gd_loss_FDG/(iteration + 1), all_pixel_loss_MRI/(iteration + 1), all_ssim_loss_MRI/(iteration + 1), all_gd_loss_MRI/(iteration + 1)]
+            
+            '''xy_downsample_cpu=xy_downsample[0].cpu().detach()
+            plt.figure(figsize=(80,60))  
+            for i in range(4):
+                plt.subplot(2,2,i+1)
+                plt.axis('off')
+                plt.imshow(xy_downsample_cpu[i])
+            filename="epoch"+str(epoch)+"_"+str(iteration)+".png"
+            filefolder=output_folder+"output_map/"
+            
+            if not os.path.exists(filefolder):
+                os.makedirs(filefolder)
+            plt.savefig(os.path.join(filefolder,filename))
+            plt.close()'''
+            
+            '''filename="epoch"+str(epoch)+"_"+str(iteration)+".png"
+            filefolder=output_folder+"output_map/"
+            
+            if not os.path.exists(filefolder):
+                os.makedirs(filefolder)
+            plt.savefig(os.path.join(filefolder,filename))
+            plt.close()'''
+            
             #break
     excel_file=output_folder+'train_'+str(fold)+'.xlsx'
     train_df.to_excel(excel_file)
@@ -400,8 +454,13 @@ def valid(ratio_ssim,validloader, save_best_loss_model, model, epoch, fold, vali
         
         f_type=fusion_type[0]
         f = model.fusion(en_FDG, en_MRI)
+        print(en_FDG[0].shape,en_FDG[1].shape,en_FDG[2].shape,en_FDG[3].shape)
         # decoder
         outputs = model.decoder_train(f)
+        
+        #outputs=model(FDG_1c,MRI_gm)
+        
+        
 
         
 
@@ -470,6 +529,9 @@ def valid(ratio_ssim,validloader, save_best_loss_model, model, epoch, fold, vali
             print("valid-> Fold {}, Epoch {} [{}/{}]:\t pixel loss FDG: {:.6f}, pixel loss MRI: {:.6f}, ssim loss FDG: {:.6f}, ssim loss MRI: {:.6f}, gradient loss FDG: {:.6f}, gradient loss MRI: {:.6f}, total: {:.6f}\n".format(fold,epoch, iteration, len(validloader), pixel_loss_FDG, pixel_loss_MRI, ssim_loss_FDG, ssim_loss_MRI, gd_loss_FDG, gd_loss_MRI, total_loss.item()))
             
             valid_df.iloc[epoch-1]=[all_total_loss/(iteration + 1), all_pixel_loss_FDG/(iteration + 1), all_ssim_loss_FDG/(iteration + 1), all_gd_loss_FDG/(iteration + 1), all_pixel_loss_MRI/(iteration + 1), all_ssim_loss_MRI/(iteration + 1), all_gd_loss_MRI/(iteration + 1)]
+            
+            
+            
             #break
     excel_file=output_folder+'valid_'+str(fold)+'.xlsx'
     valid_df.to_excel(excel_file)

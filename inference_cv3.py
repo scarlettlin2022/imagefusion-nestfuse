@@ -38,7 +38,7 @@ parser.add_argument("--cuda", action="store_true", help="Use cuda?")
 parser.add_argument("--threads", type=int, default=0, help="Number of threads for data loader to use, Default: 1")
 
 
-parser.add_argument("--resume", default="checkpoint/gradientFalse_adaptiveFalse/best_loss_fold_0.pth", type=str, help="Path to checkpoint (default: none)")
+parser.add_argument("--resume", default="checkpoint/2023-3-7-12629/best_loss_fold_0.pth", type=str, help="Path to checkpoint (default: none)")
 
 parser.add_argument("--batchSize", type=int, default=16, help="training batch size")
 parser.add_argument("--start-epoch", default=1, type=int, help="Manual epoch number (useful on restarts)")
@@ -247,8 +247,18 @@ def inference(dataset,dataloader, model, epoch):
             filefolder=f[1]+"_"+f[2][12:]
             filefolder=f[0]+"_"+f[2]
             
+            plt.figure()
+            plt.subplot(3,1,1)
+            plt.imshow(outputs_cpu[n,0,:,:],cmap='gray')
+            plt.subplot(3,1,2)
+            plt.imshow(FDG_1c_cpu[n,0,:,:],cmap='gray')
+            plt.subplot(3,1,3)
+            plt.imshow(MRI_1c_cpu[n,0,:,:],cmap='gray')
+            plt.show()
+            
+            
             #output
-            if not os.path.exists(os.path.join(output_folder,filefolder)):
+            '''if not os.path.exists(os.path.join(output_folder,filefolder)):
                 os.makedirs(os.path.join(output_folder,filefolder))
             if not os.path.exists(os.path.join(output_folder,filefolder,"fused")):
                 os.makedirs(os.path.join(output_folder,filefolder,"fused"))
@@ -259,7 +269,7 @@ def inference(dataset,dataloader, model, epoch):
                 
             fused.save(os.path.join(output_folder,filefolder,"fused", fused_filename))
             source1.save(os.path.join(output_folder,filefolder,"source1", source1_filename))
-            source2.save(os.path.join(output_folder,filefolder,"source2", source2_filename))
+            source2.save(os.path.join(output_folder,filefolder,"source2", source2_filename))'''
             
             #vis
             '''if not os.path.exists(os.path.join(output_folder,filefolder)):

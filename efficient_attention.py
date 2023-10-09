@@ -157,7 +157,7 @@ class HydraAttention(nn.Module):
         Q = self.l2_norm(Q).permute(-3, -1, -2) #Q transpose=[n, h*w, c_k]
         K = self.l2_norm(K) #K=[n, c_k, h*w]
 
-        #denominator = 1 / (width * height + torch.einsum("bnc, bc->bn", Q, torch.sum(K, dim=-1) + self.eps)) #[n, h*w]
+        #denominator = 1 / (width * height + torch.einsum("bnc, bc->bn", Q, torch.sum(K, dim=-1) + self.eps)) #[n, h*w]+
         
         agg_dom=0
         for i in range(self.head_count):
